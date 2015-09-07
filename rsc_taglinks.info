@@ -2,3 +2,4 @@ name = RSC Taglinks
 description = Parses content, changing [[tag]] into a link to the tag, and tagging the content as neccessary.
 core = 7.x
 package = RSC
+configure = admin/config/content/rsc-taglinks

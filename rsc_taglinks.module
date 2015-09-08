@@ -176,8 +176,15 @@ function _filter_rsc_taglinks($text, $format) {
  * Implements hook_node_presave().
  */
 function rsc_taglinks_node_presave($node) {
-  $vid = variable_get('rsc_taglinks_vid',-1);
-  $vocab = taxonomy_vocabulary_load($vid)->machine_name;
+  $vid = variable_get('rsc_taglinks_vid', -1);
+  $vocabulary = taxonomy_vocabulary_load($vid);
+  if (isset($vocabulary->machine_name)) {
+    $vocab_machine_name = $vocabulary->machine_name;
+  } else {
+    // rsc_taglinks has not been configured yet, or the configured vocabulary does not exist
+    return;
+  }
+
   $tagfield = '';
   $fields = field_info_fields();
   $instances = field_info_instances('node',$node->type);
@@ -185,7 +192,7 @@ function rsc_taglinks_node_presave($node) {
   
   // search for a field referencing the tags taxonomy
   foreach($fields as $name => $field) {
-    if (!empty($field['bundles']['node']) && in_array($node->type,$field['bundles']['node']) && !empty($field['settings']['allowed_values'][0]['vocabulary']) && $field['settings']['allowed_values'][0]['vocabulary'] == $vocab) {
+    if (!empty($field['bundles']['node']) && in_array($node->type,$field['bundles']['node']) && !empty($field['settings']['allowed_values'][0]['vocabulary']) && $field['settings']['allowed_values'][0]['vocabulary'] == $vocab_machine_name) {
       $tagfield = $name;
       break; // use the first one found
     }
@@ -225,14 +232,14 @@ function rsc_taglinks_node_presave($node) {
       $success_count = 0;
       $fail_count = 0;
       foreach($new_tags as $nt) {
-        $terms = taxonomy_get_term_by_name($nt, $vocab); // eers vanaf D7.14
+        $terms = taxonomy_get_term_by_name($nt, $vocab_machine_name); // eers vanaf D7.14
         if (empty($terms)) {
           // try to create new tag term
           taxonomy_term_save((object) array(
             'name' => $nt,
             'vid' => $vid
           ));
-          $terms = taxonomy_get_term_by_name($nt, $vocab);
+          $terms = taxonomy_get_term_by_name($nt, $vocab_machine_name);
         }
         
         if (!empty($terms) && is_array($terms)) { // if a terms has been found or created

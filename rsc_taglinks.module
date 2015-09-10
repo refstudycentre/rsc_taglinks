@@ -213,12 +213,24 @@ function rsc_taglinks_node_presave($node) {
     $new_tags = array();
     
     foreach ($textfields as $fieldname) {
+
+      // Get the field values, if any
       $items = field_get_items('node',$node,$fieldname);
-      foreach($items as $item) {
-        if (!empty($item['format']) && in_array($item['format'],$formats,true)) { // use strict checking http://sg3.php.net/manual/en/function.in-array.php#106319
-          $matches = array();
-          preg_match_all("/\[\[(.*?)\]\]/", $item['value'], $matches);
-          $new_tags = array_merge($new_tags, $matches[1]);
+      if ($items) {
+
+        // For each field value (usually only one)
+        foreach ($items as $item) {
+
+          // Check if the chosen format is enabled for taglinks processing
+          // use strict checking http://sg3.php.net/manual/en/function.in-array.php#106319
+          if (!empty($item['format']) && in_array($item['format'], $formats, TRUE)) {
+
+            // Find all [[tags]]
+            $matches = array();
+            preg_match_all("/\[\[(.*?)\]\]/", $item['value'], $matches);
+            $new_tags = array_merge($new_tags, $matches[1]);
+
+          }
         }
       }
     }

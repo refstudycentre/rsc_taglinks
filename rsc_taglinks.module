@@ -7,9 +7,9 @@
 function rsc_taglinks_filter_info() {
   $filters['filter_rsc_taglinks'] = array(
     'title' => t('Parse RSC tag links'),
-    'description' => t('Parses content, changing [[tag]] into a link to the tag, and tagging the content as neccessary.'),
-    'process callback' => '_filter_rsc_taglinks',
-    'settings callback' => '_filter_rsc_taglinks_settings'
+    'description' => t('Parses content, changing [[tag]] into a link to the tag, and tagging the content as necessary.'),
+    'process callback' => '_rsc_taglinks_filter_process',
+    'settings callback' => '_rsc_taglinks_filter_settings' // NOTE: this callback is not implemented...?
   );
   return $filters;
 }
@@ -48,7 +48,7 @@ function rsc_taglinks_menu() {
   $items['admin/config/content/empty-tags'] = array(
     'title'            => 'Empty Tags',
     'description'      => 'View tags that have no associated content.',
-    'page arguments'   => array('_empty_tag_form'),
+    'page arguments'   => array('rsc_taglinks_empty_tag_form'),
     'page callback'    => array('drupal_get_form'),
     'access arguments' => array('Administer RSC taglinks')
   );
@@ -60,7 +60,7 @@ function rsc_taglinks_menu() {
 /**
  * Builds the form for managing "empty" tags
  */
-function _empty_tag_form() {
+function rsc_taglinks_empty_tag_form() {
 
   $alltags = taxonomy_get_tree(variable_get('rsc_taglinks_vid'));
   $emptytags = array();
@@ -93,13 +93,13 @@ function _empty_tag_form() {
 
 
 
-function _empty_tag_form_validate($form, &$form_state) {
+function rsc_taglinks_empty_tag_form_validate($form, &$form_state) {
   // Validation logic?
 }
 
 
 
-function _empty_tag_form_submit($form, &$form_state) {
+function rsc_taglinks_empty_tag_form_submit($form, &$form_state) {
   if (isset($form_state['input']['removetags'])) {
     foreach($form_state['input']['removetags'] as $tid) {
       taxonomy_term_delete($tid);
@@ -149,7 +149,7 @@ function rsc_taglinks_settings() {
 
 
 
-function _filter_rsc_taglinks($text, $format) {
+function _rsc_taglinks_filter_process($text, $format) {
   if (!empty($text)) {
     $vid = variable_get('rsc_taglinks_vid',-1);
     $vocab = taxonomy_vocabulary_load($vid)->machine_name;

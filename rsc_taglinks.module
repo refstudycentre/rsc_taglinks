@@ -263,13 +263,14 @@ function rsc_taglinks_node_presave($node) {
           $fail_count++;
         }
       }
-      
-      if ($success_count) {
-        drupal_set_message(t('Auto-assigned !num tags for node @title',array(
-          '!num'   => $success_count,
-          '@title' => $node->title,
-        )));
-      }
+
+      // Removed this message because it floods the screen when we update multiple nodes in batch mode or with a script.
+//      if ($success_count) {
+//        drupal_set_message(t('Auto-assigned !num tags for node @title',array(
+//          '!num'   => $success_count,
+//          '@title' => $node->title,
+//        )));
+//      }
       if ($fail_count) {
         drupal_set_message(t('Failed to create !num tags for node @title.',array(
           '!num'   => $fail_count,

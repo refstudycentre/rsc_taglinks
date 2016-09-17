@@ -243,25 +243,33 @@ function rsc_taglinks_node_presave($node) {
       // add new tags
       $success_count = 0;
       $fail_count = 0;
-      foreach($new_tags as $nt) {
-        $terms = taxonomy_get_term_by_name($nt, $vocab_machine_name); // eers vanaf D7.14
-        if (empty($terms)) {
-          // try to create new tag term
+      foreach($new_tags as $tag_name) {
+
+        // check if the term exists
+        $tid = _rsc_taglinks_get_tid($vid, $tag_name);
+
+        if (FALSE == $tid) {
+
+          // try to create the term
           taxonomy_term_save((object) array(
-            'name' => $nt,
+            'name' => $tag_name,
             'vid' => $vid
           ));
-          $terms = taxonomy_get_term_by_name($nt, $vocab_machine_name);
+
+          // check whether it exists now
+          $tid = _rsc_taglinks_get_tid($vid, $tag_name);
+
         }
-        
-        if (!empty($terms) && is_array($terms)) { // if a terms has been found or created
-          $term = array_shift($terms);
-          $tid = $term->tid;
+
+        if (FALSE == $tid) {
+          // we tried to create the term, but it didn't work
+          $fail_count++;
+        } else {
+          // add the term to the reference field
           $node->{$tagfield}[$langcode][] = array('tid'=>$tid);
           $success_count++;
-        } else {
-          $fail_count++;
         }
+
       }
 
       // Removed this message because it floods the screen when we update multiple nodes in batch mode or with a script.
@@ -281,3 +289,26 @@ function rsc_taglinks_node_presave($node) {
   }
 }
 
+
+/**
+ * Get the taxonomy term id for the given term name and vocabulary
+ */
+function _rsc_taglinks_get_tid($vid, $term_name) {
+
+  /*
+   * The correct, but slow, API-driven way:
+   */
+//  $terms = taxonomy_get_term_by_name($term_name, $vocab_machine_name);
+//  $term = array_shift($terms);
+//  return $term->tid;
+
+  /*
+   * The quick, but SQL-dependent way:
+   */
+  $result = db_query("SELECT tid FROM `taxonomy_term_data` WHERE vid=:vid AND name=:name LIMIT 1", array(
+    ':vid'  => $vid,
+    ':name' => $term_name,
+  ));
+  return $result->fetchField();
+
+}

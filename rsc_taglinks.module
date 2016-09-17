@@ -152,17 +152,16 @@ function rsc_taglinks_settings() {
 function _rsc_taglinks_filter_process($text, $format) {
   if (!empty($text)) {
     $vid = variable_get('rsc_taglinks_vid',-1);
-    $vocab = taxonomy_vocabulary_load($vid)->machine_name;
 
-    $replace_tag = function ($m) use ($vocab) {
-      
-      $terms = taxonomy_get_term_by_name($m[1], $vocab); // eers vanaf D7.14 :O
-      $term = array_shift($terms);
-      if (!is_null($term)) {
-        $uri = taxonomy_term_uri($term);
-        $ret = l($m[1],$uri['path']);
+    $replace_tag = function ($m) use ($vid) {
+      $tag_name = &$m[1];
+      $tid = _rsc_taglinks_get_tid($vid, $tag_name);
+      if (FALSE == $tid) {
+        // term does not exist
+        $ret = $tag_name;
       } else {
-        $ret = $m[1];
+        // term exists. link to term page
+        $ret = l($tag_name, 'taxonomy/term/'.$tid);
       }
       return $ret;
     };
@@ -215,8 +214,14 @@ function rsc_taglinks_node_presave($node) {
     foreach ($textfields as $fieldname) {
 
       // Get the field values, if any
-      $items = field_get_items('node',$node,$fieldname);
-      if ($items) {
+      // The correct way:
+//      $items = field_get_items('node',$node,$fieldname);
+//      if ($items) {
+//        ...
+//      }
+      // The faster way, assuming the field language is the same as the node language:
+      if (isset($node->{$fieldname}[$node->language])) {
+        $items = $node->{$fieldname}[$node->language];
 
         // For each field value (usually only one)
         foreach ($items as $item) {

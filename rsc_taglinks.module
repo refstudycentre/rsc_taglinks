@@ -7,9 +7,9 @@
 function rsc_taglinks_filter_info() {
   $filters['filter_rsc_taglinks'] = array(
     'title' => t('Parse RSC tag links'),
-    'description' => t('Parses content, changing [[tag]] into a link to the tag, and tagging the content as neccessary.'),
-    'process callback' => '_filter_rsc_taglinks',
-    'settings callback' => '_filter_rsc_taglinks_settings'
+    'description' => t('Parses content, changing [[tag]] into a link to the tag, and tagging the content as necessary.'),
+    'process callback' => '_rsc_taglinks_filter_process',
+    'settings callback' => '_rsc_taglinks_filter_settings' // NOTE: this callback is not implemented...?
   );
   return $filters;
 }
@@ -48,7 +48,7 @@ function rsc_taglinks_menu() {
   $items['admin/config/content/empty-tags'] = array(
     'title'            => 'Empty Tags',
     'description'      => 'View tags that have no associated content.',
-    'page arguments'   => array('_empty_tag_form'),
+    'page arguments'   => array('rsc_taglinks_empty_tag_form'),
     'page callback'    => array('drupal_get_form'),
     'access arguments' => array('Administer RSC taglinks')
   );
@@ -60,7 +60,7 @@ function rsc_taglinks_menu() {
 /**
  * Builds the form for managing "empty" tags
  */
-function _empty_tag_form() {
+function rsc_taglinks_empty_tag_form() {
 
   $alltags = taxonomy_get_tree(variable_get('rsc_taglinks_vid'));
   $emptytags = array();
@@ -93,13 +93,13 @@ function _empty_tag_form() {
 
 
 
-function _empty_tag_form_validate($form, &$form_state) {
+function rsc_taglinks_empty_tag_form_validate($form, &$form_state) {
   // Validation logic?
 }
 
 
 
-function _empty_tag_form_submit($form, &$form_state) {
+function rsc_taglinks_empty_tag_form_submit($form, &$form_state) {
   if (isset($form_state['input']['removetags'])) {
     foreach($form_state['input']['removetags'] as $tid) {
       taxonomy_term_delete($tid);
@@ -149,20 +149,19 @@ function rsc_taglinks_settings() {
 
 
 
-function _filter_rsc_taglinks($text, $format) {
+function _rsc_taglinks_filter_process($text, $format) {
   if (!empty($text)) {
     $vid = variable_get('rsc_taglinks_vid',-1);
-    $vocab = taxonomy_vocabulary_load($vid)->machine_name;
 
-    $replace_tag = function ($m) use ($vocab) {
-      
-      $terms = taxonomy_get_term_by_name($m[1], $vocab); // eers vanaf D7.14 :O
-      $term = array_shift($terms);
-      if (!is_null($term)) {
-        $uri = taxonomy_term_uri($term);
-        $ret = l($m[1],$uri['path']);
+    $replace_tag = function ($m) use ($vid) {
+      $tag_name = &$m[1];
+      $tid = _rsc_taglinks_get_tid($vid, $tag_name);
+      if (FALSE == $tid) {
+        // term does not exist
+        $ret = $tag_name;
       } else {
-        $ret = $m[1];
+        // term exists. link to term page
+        $ret = l($tag_name, 'taxonomy/term/'.$tid);
       }
       return $ret;
     };
@@ -224,8 +223,14 @@ function rsc_taglinks_node_presave($node) {
     foreach ($textfields as $fieldname) {
 
       // Get the field values, if any
-      $items = field_get_items('node',$node,$fieldname);
-      if ($items) {
+      // The correct way:
+//      $items = field_get_items('node',$node,$fieldname);
+//      if ($items) {
+//        ...
+//      }
+      // The faster way, assuming the field language is the same as the node language:
+      if (isset($node->{$fieldname}[$node->language])) {
+        $items = $node->{$fieldname}[$node->language];
 
         // For each field value (usually only one)
         foreach ($items as $item) {
@@ -253,33 +258,42 @@ function rsc_taglinks_node_presave($node) {
       // add new tags
       $success_count = 0;
       $fail_count = 0;
-      foreach($new_tags as $nt) {
-        $terms = taxonomy_get_term_by_name($nt, $vocab_machine_name); // eers vanaf D7.14
-        if (empty($terms)) {
-          // try to create new tag term
+      foreach($new_tags as $tag_name) {
+
+        // check if the term exists
+        $tid = _rsc_taglinks_get_tid($vid, $tag_name);
+
+        if (FALSE == $tid) {
+
+          // try to create the term
           taxonomy_term_save((object) array(
-            'name' => $nt,
+            'name' => $tag_name,
             'vid' => $vid
           ));
-          $terms = taxonomy_get_term_by_name($nt, $vocab_machine_name);
+
+          // check whether it exists now
+          $tid = _rsc_taglinks_get_tid($vid, $tag_name);
+
         }
-        
-        if (!empty($terms) && is_array($terms)) { // if a terms has been found or created
-          $term = array_shift($terms);
-          $tid = $term->tid;
+
+        if (FALSE == $tid) {
+          // we tried to create the term, but it didn't work
+          $fail_count++;
+        } else {
+          // add the term to the reference field
           $node->{$tagfield}[$langcode][] = array('tid'=>$tid);
           $success_count++;
-        } else {
-          $fail_count++;
         }
+
       }
-      
-      if ($success_count) {
-        drupal_set_message(t('Auto-assigned !num tags for node @title',array(
-          '!num'   => $success_count,
-          '@title' => $node->title,
-        )));
-      }
+
+      // Removed this message because it floods the screen when we update multiple nodes in batch mode or with a script.
+//      if ($success_count) {
+//        drupal_set_message(t('Auto-assigned !num tags for node @title',array(
+//          '!num'   => $success_count,
+//          '@title' => $node->title,
+//        )));
+//      }
       if ($fail_count) {
         drupal_set_message(t('Failed to create !num tags for node @title.',array(
           '!num'   => $fail_count,
@@ -290,3 +304,26 @@ function rsc_taglinks_node_presave($node) {
   }
 }
 
+
+/**
+ * Get the taxonomy term id for the given term name and vocabulary
+ */
+function _rsc_taglinks_get_tid($vid, $term_name) {
+
+  /*
+   * The correct, but slow, API-driven way:
+   */
+//  $terms = taxonomy_get_term_by_name($term_name, $vocab_machine_name);
+//  $term = array_shift($terms);
+//  return $term->tid;
+
+  /*
+   * The quick, but SQL-dependent way:
+   */
+  $result = db_query("SELECT tid FROM `taxonomy_term_data` WHERE vid=:vid AND name=:name LIMIT 1", array(
+    ':vid'  => $vid,
+    ':name' => $term_name,
+  ));
+  return $result->fetchField();
+
+}

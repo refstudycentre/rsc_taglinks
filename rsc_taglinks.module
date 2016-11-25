@@ -243,6 +243,7 @@ function rsc_taglinks_node_presave($node) {
             $matches = array();
             preg_match_all("/\[\[(.*?)\]\]/", $item['value'], $matches);
             $new_tags = array_merge($new_tags, $matches[1]);
+            $new_tags = array_map(trim, $new_tags);
 
           }
         }

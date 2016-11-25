@@ -175,15 +175,24 @@ function _rsc_taglinks_filter_process($text, $format) {
  * Implements hook_node_presave().
  */
 function rsc_taglinks_node_presave($node) {
-  $vid = variable_get('rsc_taglinks_vid', -1);
-  $vocabulary = taxonomy_vocabulary_load($vid);
-  if (isset($vocabulary->machine_name)) {
-    $vocab_machine_name = $vocabulary->machine_name;
-  } else {
-    // rsc_taglinks has not been configured yet, or the configured vocabulary does not exist
+
+  $vid = (int) variable_get('rsc_taglinks_vid', -1);
+  if ($vid < 1) {
+    drupal_set_message(t("@module has not been configured yet.", array(
+      '@module' => 'rsc_taglinks'
+    )), 'warning', FALSE);
     return;
   }
 
+  $vocabulary = taxonomy_vocabulary_load($vid);
+  if (!isset($vocabulary->machine_name)) {
+    drupal_set_message(t("The configured vocabulary for @module does not exist.", array(
+      '@module' => 'rsc_taglinks'
+    )), 'warning', FALSE);
+    return;
+  }
+
+  $vocab_machine_name = $vocabulary->machine_name;
   $tagfield = '';
   $fields = field_info_fields();
   $instances = field_info_instances('node',$node->type);

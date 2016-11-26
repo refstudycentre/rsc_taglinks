@@ -3,3 +3,5 @@ description = Parses content, changing [[tag]] into a link to the tag, and taggi
 core = 7.x
 package = RSC
 configure = admin/config/content/rsc-taglinks
+
+version = 7.x-1.x
